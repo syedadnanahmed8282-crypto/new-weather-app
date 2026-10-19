@@ -23,15 +23,14 @@ fun WeatherApp(vm: WeatherViewModel, onRequestLocation: () -> Unit) {
         if (ui.selected.key != lastKey) { lastKey = ui.selected.key; tab = 0 }
     }
 
+    // The sky follows the real weather and the local time at the selected city
     val success = ui.weather as? WeatherState.Success
-    val theme = if (success != null) {
-        themeFor(timeOfDay(LocalDateTime.parse(success.data.current.time).hour), skyOf(success.data.current.code))
-    } else {
-        themeFor(TimeOfDay.Noon, Sky.Sunny)
-    }
+    val sky = success?.let { skyOf(it.data.current.code, it.data.current.wind) } ?: Sky.Sunny
+    val tod = success?.let { timeOfDay(LocalDateTime.parse(it.data.current.time).hour) } ?: TimeOfDay.Noon
+    val theme = themeFor(tod, sky)
 
     Box(Modifier.fillMaxSize()) {
-        SkyBackground(theme)
+        SkyBackground(theme, sky)
         Crossfade(tab, label = "screen") { t ->
             when (t) {
                 0 -> HomeScreen(ui, theme, onSearchClick = { tab = 1 }, onRetry = vm::refresh)

@@ -1,10 +1,14 @@
 package com.example.weather
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -19,7 +23,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.BlurredEdgeTreatment
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -42,30 +45,31 @@ fun Modifier.glass(t: SkyTheme, radius: Dp = 28.dp, alpha: Float = t.glassAlpha)
         )
 }
 
-private val STARS = listOf(40f to 60f, 110f to 28f, 200f to 92f, 330f to 40f, 300f to 132f, 70f to 140f)
-
-/** Animated sky: gradient + sun/moon + clouds + stars. Everything cross-fades when the theme changes. */
+/**
+ * The living sky: gradient, sun or moon, slowly drifting clouds, then the weather itself
+ * (rain, snow, wind, dust, stars) and lightning. Everything cross-fades when the theme changes.
+ */
 @Composable
-fun SkyBackground(theme: SkyTheme) {
+fun SkyBackground(theme: SkyTheme, sky: Sky) {
     val top by animateColorAsState(theme.top, tween(1200), label = "top")
     val mid by animateColorAsState(theme.mid, tween(1200), label = "mid")
     val bottom by animateColorAsState(theme.bottom, tween(1200), label = "bottom")
-    val starAlpha by animateFloatAsState(theme.starAlpha, tween(1200), label = "stars")
+
+    val inf = rememberInfiniteTransition(label = "drift")
+    val d1 by inf.animateFloat(-16f, 16f, infiniteRepeatable(tween(9000, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "d1")
+    val d2 by inf.animateFloat(14f, -14f, infiniteRepeatable(tween(12000, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "d2")
 
     Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(top, mid, bottom)))) {
-        AnimatedOrb(theme.cloud1)
-        AnimatedOrb(theme.cloud2)
-        AnimatedOrb(theme.sun)
-        Canvas(Modifier.fillMaxSize()) {
-            STARS.forEach { (x, y) ->
-                drawCircle(Color.White.copy(alpha = starAlpha), 2.5.dp.toPx(), Offset(x.dp.toPx(), y.dp.toPx()))
-            }
-        }
+        AnimatedOrb(theme.cloud1, d1)
+        AnimatedOrb(theme.cloud2, d2)
+        AnimatedOrb(theme.sun, 0f)
+        WeatherParticles(sky, theme.starAlpha)
+        LightningFlash(active = sky == Sky.Storm)
     }
 }
 
 @Composable
-private fun AnimatedOrb(o: Orb) {
+private fun AnimatedOrb(o: Orb, drift: Float) {
     val x by animateDpAsState(o.x, tween(1200), label = "x")
     val y by animateDpAsState(o.y, tween(1200), label = "y")
     val w by animateDpAsState(o.w, tween(1200), label = "w")
@@ -73,7 +77,7 @@ private fun AnimatedOrb(o: Orb) {
     val color by animateColorAsState(o.color, tween(1200), label = "c")
     // blur() needs Android 12+ (API 31); on older versions the orbs are simply sharp.
     Box(
-        Modifier.offset(x, y).size(w, h)
+        Modifier.offset(x + drift.dp, y).size(w, h)
             .blur(o.blur, BlurredEdgeTreatment.Unbounded)
             .background(color, CircleShape)
     )
