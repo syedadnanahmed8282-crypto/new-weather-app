@@ -1,5 +1,6 @@
 package com.example.weather
 
+import android.os.Build
 import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Text
@@ -7,6 +8,10 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.BlurEffect
+import androidx.compose.ui.graphics.TileMode
+import androidx.compose.ui.graphics.rememberGraphicsLayer
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -29,29 +34,43 @@ fun WeatherApp(vm: WeatherViewModel, onRequestLocation: () -> Unit) {
     val tod = success?.let { timeOfDay(LocalDateTime.parse(it.data.current.time).hour) } ?: TimeOfDay.Noon
     val theme = themeFor(tod, sky)
 
-    Box(Modifier.fillMaxSize()) {
-        SkyBackground(theme, sky)
-        Crossfade(tab, label = "screen") { t ->
-            when (t) {
-                0 -> HomeScreen(ui, theme, onSearchClick = { tab = 1 }, onRetry = vm::refresh)
-                1 -> CitiesScreen(
-                    ui, theme,
-                    onQuery = vm::search,
-                    onSelect = vm::select,
-                    onAdd = vm::addAndSelect,
-                    onRemove = vm::remove,
-                    onUseLocation = onRequestLocation,
-                )
-                else -> AlertsScreen(theme)
-            }
+    // Real glass blur needs Android 12+ (API 31). Older phones get the frosted look instead.
+    val useBlur = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+    val density = LocalDensity.current
+    val blurLayer = rememberGraphicsLayer()
+    SideEffect {
+        if (useBlur) {
+            val r = with(density) { 18.dp.toPx() }
+            blurLayer.renderEffect = BlurEffect(r, r, TileMode.Clamp)
         }
-        GlassTabBar(
-            selected = tab,
-            onSelect = { tab = it },
-            theme = theme,
-            modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding()
-                .padding(horizontal = 20.dp, vertical = 16.dp),
-        )
+    }
+    val backdrop = if (useBlur) blurLayer else null
+
+    CompositionLocalProvider(LocalBlurBackdrop provides backdrop) {
+        Box(Modifier.fillMaxSize()) {
+            SkyBackground(theme, sky, backdrop)
+            Crossfade(tab, label = "screen") { t ->
+                when (t) {
+                    0 -> HomeScreen(ui, theme, onSearchClick = { tab = 1 }, onRetry = vm::refresh)
+                    1 -> CitiesScreen(
+                        ui, theme,
+                        onQuery = vm::search,
+                        onSelect = vm::select,
+                        onAdd = vm::addAndSelect,
+                        onRemove = vm::remove,
+                        onUseLocation = onRequestLocation,
+                    )
+                    else -> AlertsScreen(theme)
+                }
+            }
+            GlassTabBar(
+                selected = tab,
+                onSelect = { tab = it },
+                theme = theme,
+                modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding()
+                    .padding(horizontal = 20.dp, vertical = 16.dp),
+            )
+        }
     }
 }
 
