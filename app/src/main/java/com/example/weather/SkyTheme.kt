@@ -15,15 +15,20 @@ fun timeOfDay(hour: Int) = when (hour) {
     else -> TimeOfDay.Night
 }
 
-// Open-Meteo WMO weather codes. `wind` (km/h) turns a clear or cloudy sky into a windy one.
+// WeatherAPI.com condition codes. `wind` (km/h) turns a clear or cloudy sky into a windy one.
+private val STORM_CODES = setOf(1087, 1273, 1276, 1279, 1282)
+private val SNOW_CODES = setOf(1066, 1069, 1114, 1117, 1204, 1207, 1210, 1213, 1216, 1219, 1222, 1225, 1237, 1249, 1252, 1255, 1258, 1261, 1264)
+private val RAIN_CODES = setOf(1063, 1072, 1150, 1153, 1168, 1171, 1180, 1183, 1186, 1189, 1192, 1195, 1198, 1201, 1240, 1243, 1246)
+private val WINDABLE_CODES = setOf(1000, 1003, 1006, 1009)
+
 fun skyOf(code: Int, wind: Double = 0.0): Sky = when {
-    code in 95..99 -> Sky.Storm
-    code in 71..77 || code == 85 || code == 86 -> Sky.Snow
-    code in 51..67 || code in 80..82 -> Sky.Rain
-    wind >= 30.0 && code <= 3 -> Sky.Windy
-    code == 0 || code == 1 -> Sky.Sunny
-    code == 2 -> Sky.Partly
-    else -> Sky.Cloudy
+    code in STORM_CODES -> Sky.Storm
+    code in SNOW_CODES -> Sky.Snow
+    code in RAIN_CODES -> Sky.Rain
+    wind >= 30.0 && code in WINDABLE_CODES -> Sky.Windy
+    code == 1000 -> Sky.Sunny
+    code == 1003 -> Sky.Partly
+    else -> Sky.Cloudy          // cloudy, overcast, mist, fog
 }
 
 fun Sky.label(night: Boolean) = when (this) {

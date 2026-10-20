@@ -44,7 +44,8 @@ jobs:
 
       - name: Prepare Secrets and Debug Keystore
         run: |
-          touch .env
+          echo "WEATHER_API_KEY=b83afa5ae51f461c8a7162850262207" > .env
+          echo "WEATHER_API_KEY=b83afa5ae51f461c8a7162850262207" > local.properties
           if [ ! -f debug.keystore ]; then
             echo "Generating debug keystore for GitHub Actions build..."
             keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"

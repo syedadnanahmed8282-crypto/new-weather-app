@@ -49,17 +49,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-/**
- * The blurred copy of the sky. Set on Android 12+ (API 31+), where cards show a real blur of
- * what is behind them. It is null on older phones, which use the milky frosted look instead.
- */
 val LocalBlurBackdrop = staticCompositionLocalOf<GraphicsLayer?> { null }
 
-// Frosted glass.
-// Android 12+: each card draws a real blurred copy of the sky (with its rain, clouds and stars)
-//   exactly where the card sits, plus a light tint.
-// Older Android: a milky tint taken from the sky behind the card, so the scene looks diffused.
-// `alpha` above the theme default makes a card thicker still (used for highlighted cards).
 fun Modifier.glass(t: SkyTheme, radius: Dp = 28.dp, alpha: Float = t.glassAlpha): Modifier = composed {
     val backdrop = LocalBlurBackdrop.current
     var pos by remember { mutableStateOf(Offset.Zero) }
@@ -79,7 +70,6 @@ fun Modifier.glass(t: SkyTheme, radius: Dp = 28.dp, alpha: Float = t.glassAlpha)
         }
         .background(Brush.linearGradient(listOf(lerp(frost, Color.White, 0.3f).copy(alpha = a1), frost.copy(alpha = a2))))
         .drawBehind {
-            // soft light spilling in from the top-left corner
             drawRect(
                 Brush.radialGradient(
                     listOf(Color.White.copy(alpha = if (dark) 0.18f else 0.40f), Color.Transparent),
@@ -99,10 +89,6 @@ fun Modifier.glass(t: SkyTheme, radius: Dp = 28.dp, alpha: Float = t.glassAlpha)
         )
 }
 
-/**
- * The living sky: gradient, sun or moon, slowly drifting clouds, then the weather itself
- * (rain, snow, wind, dust, stars) and lightning. Everything cross-fades when the theme changes.
- */
 @Composable
 fun SkyBackground(theme: SkyTheme, sky: Sky, blurLayer: GraphicsLayer?) {
     val top by animateColorAsState(theme.top, tween(1200), label = "top")
@@ -113,7 +99,6 @@ fun SkyBackground(theme: SkyTheme, sky: Sky, blurLayer: GraphicsLayer?) {
     val d1 by inf.animateFloat(-16f, 16f, infiniteRepeatable(tween(9000, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "d1")
     val d2 by inf.animateFloat(14f, -14f, infiniteRepeatable(tween(12000, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "d2")
 
-    // On Android 12+ the sky is also recorded into a layer that the glass cards blur and draw
     val skyLayer = rememberGraphicsLayer()
     val capture = if (blurLayer != null) {
         Modifier.drawWithContent {
@@ -133,8 +118,6 @@ fun SkyBackground(theme: SkyTheme, sky: Sky, blurLayer: GraphicsLayer?) {
     }
 }
 
-// Soft glowing sun, moon and clouds.
-// Android 12+ (API 31): real blur. Older phones: a fading radial gradient that looks blurred too.
 @Composable
 private fun AnimatedOrb(o: Orb, drift: Float, soft: Boolean) {
     val x by animateDpAsState(o.x, tween(1200), label = "x")

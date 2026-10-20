@@ -16,6 +16,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -30,6 +31,7 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.temporal.ChronoUnit
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
@@ -57,7 +59,7 @@ fun HomeScreen(ui: UiState, theme: SkyTheme, onSearchClick: () -> Unit, onRetry:
                 }
             }
 
-        is WeatherState.Success -> WeatherContent(w.data, ui.selected.name, theme, onSearchClick)
+        is WeatherState.Success -> WeatherContent(w.data, ui.selected.name, ui.following && ui.selected.current, theme, onSearchClick, onRetry)
     }
 }
 
@@ -79,7 +81,10 @@ private fun AnimatedTemp(value: Int, color: Color) {
 }
 
 @Composable
-private fun WeatherContent(data: WeatherResponse, city: String, theme: SkyTheme, onSearchClick: () -> Unit) {
+private fun WeatherContent(
+    data: WeatherResponse, city: String, live: Boolean, theme: SkyTheme,
+    onSearchClick: () -> Unit, onRefresh: () -> Unit,
+) {
     val now = LocalDateTime.parse(data.current.time)
     val tod = timeOfDay(now.hour)
     val sky = skyOf(data.current.code, data.current.wind)
@@ -102,7 +107,7 @@ private fun WeatherContent(data: WeatherResponse, city: String, theme: SkyTheme,
             Appear(0) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Column {
-                        Text(greeting, color = muted, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                        Text(if (live) "$greeting · live location" else greeting, color = muted, fontSize = 13.sp, fontWeight = FontWeight.Medium)
                         Text(city, color = ink, fontSize = 24.sp, fontWeight = FontWeight.Bold)
                         Text(now.format(DateTimeFormatter.ofPattern("EEEE, d MMM · h:mm a")), color = muted, fontSize = 13.sp)
                     }
@@ -124,6 +129,7 @@ private fun WeatherContent(data: WeatherResponse, city: String, theme: SkyTheme,
                         "Feels like ${data.current.feelsLike.roundToInt()}° · H ${data.daily.max[0].roundToInt()}° L ${data.daily.min[0].roundToInt()}°",
                         color = muted, fontSize = 12.sp,
                     )
+                    UpdatedLabel(data, muted, onRefresh)
                 }
             }
         }
@@ -189,6 +195,23 @@ private fun WeatherContent(data: WeatherResponse, city: String, theme: SkyTheme,
             }
         }
     }
+}
+
+/** "Updated 3 min ago": age of the reading at the weather service plus the time since it was fetched. */
+@Composable
+private fun UpdatedLabel(data: WeatherResponse, color: Color, onClick: () -> Unit) {
+    val now by produceState(System.currentTimeMillis()) {
+        while (true) { delay(30_000); value = System.currentTimeMillis() }
+    }
+    val sourceAge = runCatching {
+        ChronoUnit.MINUTES.between(LocalDateTime.parse(data.updated), LocalDateTime.parse(data.current.time))
+    }.getOrDefault(0L).coerceAtLeast(0L)
+    val minutes = sourceAge + (now - data.fetchedAt) / 60_000L
+    val text = if (minutes < 1) "Updated just now" else "Updated $minutes min ago"
+    Text(
+        "$text · tap to refresh", color = color, fontSize = 12.sp,
+        modifier = Modifier.clickable(onClick = onClick).padding(top = 6.dp),
+    )
 }
 
 @Composable

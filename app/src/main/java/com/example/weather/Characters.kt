@@ -67,11 +67,6 @@ private class Anim(
 
 private fun stroke(w: Float) = Stroke(w, cap = StrokeCap.Round, join = StrokeJoin.Round)
 
-/**
- * A cute animated weather character. Everything moves on its own (bobbing, blinking, talking,
- * spinning rays, falling drops, flickering lightning...). Tap it and it jumps and says "ooh".
- * The drawing uses a 200 x 200 design grid that is scaled to [size].
- */
 @Composable
 fun WeatherCharacter(sky: Sky, night: Boolean, size: Dp, modifier: Modifier = Modifier) {
     val kind = kindFor(sky, night)
@@ -134,8 +129,6 @@ fun WeatherCharacter(sky: Sky, night: Boolean, size: Dp, modifier: Modifier = Mo
     }
 }
 
-// ---------------------------------------------------------------- shared pieces
-
 private fun DrawScope.shadow(cx: Float, cy: Float, rx: Float) =
     drawOval(Color.Black.copy(alpha = 0.1f), Offset(cx - rx, cy - 6f), Size(rx * 2, 12f))
 
@@ -169,8 +162,6 @@ private fun DrawScope.zzz(x: Float, y: Float, t: Float) {
         zShape(x + ph * 14f, y - ph * 26f, 1f - i * 0.3f, sin(ph * 3.1416f))
     }
 }
-
-// ---------------------------------------------------------------- faces
 
 private fun DrawScope.eye(x: Float, y: Float, s: Float, blink: Float) {
     scale(1f, blink, Offset(x, y)) {
@@ -210,14 +201,14 @@ private fun DrawScope.face(kind: CharKind, cx: Float, y: Float, g: Float, a: Ani
             drawPath(m, MouthC); drawPath(m, Ink, style = stroke(3f))
             drawOval(Tongue, Offset(cx - 6.5f, y + 12f + h * 0.38f - 3.4f), Size(13f, 6.8f))
         }
-        CharKind.Cloud -> {                       // yawning
+        CharKind.Cloud -> {
             closedEyes(cx, y, g); blush(cx, y, g)
             val h = 17f * a.talk
             drawOval(MouthC, Offset(cx - 6.5f, y + 21f - h / 2), Size(13f, h))
             drawOval(Ink, Offset(cx - 6.5f, y + 21f - h / 2), Size(13f, h), style = stroke(3f))
             drawOval(Tongue, Offset(cx - 3.8f, y + 21f + h / 2 - 6f), Size(7.6f, 5f))
         }
-        CharKind.Rain -> {                        // sad, teary
+        CharKind.Rain -> {
             eye(cx - g, y, 1.1f, a.blink); eye(cx + g, y, 1.1f, a.blink)
             line(cx - g - 10f, y - 13f, cx - g + 3f, y - 19f, 3.5f); line(cx + g + 10f, y - 13f, cx + g - 3f, y - 19f, 3.5f)
             blush(cx, y, g, 0.9f, 0.5f)
@@ -229,7 +220,7 @@ private fun DrawScope.face(kind: CharKind, cx: Float, y: Float, g: Float, a: Ani
             }
             drawPath(tear, Color(0xFF8CCAFF)); drawPath(tear, Color(0xFF4AA3F0), style = Stroke(1.5f))
         }
-        CharKind.Storm -> {                       // angry, shouting
+        CharKind.Storm -> {
             eye(cx - g, y + 1f, 0.85f, a.blink); eye(cx + g, y + 1f, 0.85f, a.blink)
             line(cx - g - 10f, y - 14f, cx - g + 5f, y - 6f, 5f); line(cx + g + 10f, y - 14f, cx + g - 5f, y - 6f, 5f)
             blush(cx, y, g, 0.9f, 0.5f)
@@ -237,7 +228,7 @@ private fun DrawScope.face(kind: CharKind, cx: Float, y: Float, g: Float, a: Ani
             drawPath(m, MouthC); drawPath(m, Ink, style = stroke(3f))
             drawRoundRect(Color.White, Offset(cx - 9f, y + 15f), Size(18f, 5f), CornerRadius(1.5f))
         }
-        CharKind.Wind -> {                        // puffed cheeks, blowing
+        CharKind.Wind -> {
             val p = Path().apply {
                 moveTo(cx - g - 7f, y - 7f); lineTo(cx - g + 4f, y); lineTo(cx - g - 7f, y + 7f)
                 moveTo(cx + g + 7f, y - 7f); lineTo(cx + g - 4f, y); lineTo(cx + g + 7f, y + 7f)
@@ -248,7 +239,7 @@ private fun DrawScope.face(kind: CharKind, cx: Float, y: Float, g: Float, a: Ani
             drawCircle(Color(0xFFFF9FB4).copy(alpha = 0.75f), r, Offset(cx + g + 14f, y + 12f))
             drawCircle(MouthC, 5.5f, Offset(cx + 4f, y + 17f)); drawCircle(Ink, 5.5f, Offset(cx + 4f, y + 17f), style = stroke(3f))
         }
-        CharKind.Moon -> {                        // sleeping with a snore bubble
+        CharKind.Moon -> {
             closedEyes(cx, y, g); blush(cx, y, g)
             val sm = Path().apply { moveTo(cx - 5f, y + 15f); quadraticBezierTo(cx, y + 19f, cx + 5f, y + 15f) }
             drawPath(sm, Ink, style = stroke(4f))
@@ -258,8 +249,6 @@ private fun DrawScope.face(kind: CharKind, cx: Float, y: Float, g: Float, a: Ani
         CharKind.Snow -> Unit
     }
 }
-
-// ---------------------------------------------------------------- characters
 
 private fun DrawScope.drawSun(a: Anim) {
     shadow(100f, 190f, 48f)

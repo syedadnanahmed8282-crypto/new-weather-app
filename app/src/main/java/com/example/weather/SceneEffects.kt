@@ -28,7 +28,6 @@ import kotlin.math.abs
 import kotlin.math.sin
 import kotlin.random.Random
 
-/** True when the person turned system animations off. Motion is then reduced to a still scene. */
 @Composable
 fun rememberReduceMotion(): Boolean {
     val ctx = LocalContext.current
@@ -67,10 +66,6 @@ private fun makePrecip(sky: Sky, reduce: Boolean): List<Particle> {
 
 private val LeafColors = listOf(Color(0xFF7BC96F), Color(0xFFFFB84D), Color(0xFFFF8A65))
 
-/**
- * Full-screen weather: falling rain with ripples, snow, wind streaks and leaves, floating sun dust,
- * twinkling stars and shooting stars at night. Pauses when the app is in the background.
- */
 @Composable
 fun WeatherParticles(sky: Sky, starAlpha: Float, modifier: Modifier = Modifier) {
     val reduce = rememberReduceMotion()
@@ -81,7 +76,7 @@ fun WeatherParticles(sky: Sky, starAlpha: Float, modifier: Modifier = Modifier) 
         }
     }
     val ripples = remember(sky) { mutableListOf<Ripple>() }
-    val shoot = remember { floatArrayOf(0f, 0f, 0f) }     // x, y, alpha
+    val shoot = remember { floatArrayOf(0f, 0f, 0f) }
     val last = remember { LongArray(1) }
     var tick by remember { mutableLongStateOf(0L) }
     val owner = LocalLifecycleOwner.current
@@ -173,7 +168,6 @@ fun WeatherParticles(sky: Sky, starAlpha: Float, modifier: Modifier = Modifier) 
     }
 }
 
-/** White flash across the whole screen at random moments during a thunderstorm. */
 @Composable
 fun LightningFlash(active: Boolean, modifier: Modifier = Modifier) {
     val reduce = rememberReduceMotion()

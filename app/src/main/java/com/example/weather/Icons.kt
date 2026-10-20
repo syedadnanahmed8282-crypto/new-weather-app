@@ -18,8 +18,6 @@ import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.unit.Dp
 
-// ---- small 3D-style icon helpers (48 x 48 design grid) ----
-
 private fun DrawScope.iconGloss(cx: Float, cy: Float, rx: Float, ry: Float, deg: Float, a: Float) =
     rotate(deg, Offset(cx, cy)) { drawOval(Color.White.copy(alpha = a), Offset(cx - rx, cy - ry), Size(rx * 2, ry * 2)) }
 
