@@ -11,6 +11,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -38,7 +42,10 @@ import java.util.Locale
 import kotlin.math.roundToInt
 
 @Composable
-fun HomeScreen(ui: UiState, theme: SkyTheme, onSearchClick: () -> Unit, onRetry: () -> Unit) {
+fun HomeScreen(
+    ui: UiState, theme: SkyTheme,
+    onSearchClick: () -> Unit, onRetry: () -> Unit, onRefresh: () -> Unit,
+) {
     when (val w = ui.weather) {
         is WeatherState.Loading ->
             Box(Modifier.fillMaxSize(), Alignment.Center) { CircularProgressIndicator(color = theme.ink) }
@@ -59,7 +66,7 @@ fun HomeScreen(ui: UiState, theme: SkyTheme, onSearchClick: () -> Unit, onRetry:
                 }
             }
 
-        is WeatherState.Success -> WeatherContent(w.data, ui.selected.name, ui.following && ui.selected.current, theme, onSearchClick, onRetry)
+        is WeatherState.Success -> WeatherContent(w.data, ui.selected.name, ui.following && ui.selected.current, ui.refreshing, theme, onSearchClick, onRefresh)
     }
 }
 
@@ -80,8 +87,33 @@ private fun AnimatedTemp(value: Int, color: Color) {
     Text("${anim.value.roundToInt()}°", color = color, fontSize = 88.sp, fontWeight = FontWeight.Light)
 }
 
+/** Pull down from the top to refresh the weather and the location. */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun WeatherContent(
+    data: WeatherResponse, city: String, live: Boolean, refreshing: Boolean, theme: SkyTheme,
+    onSearchClick: () -> Unit, onRefresh: () -> Unit,
+) {
+    val state = rememberPullToRefreshState()
+    PullToRefreshBox(
+        isRefreshing = refreshing,
+        onRefresh = onRefresh,
+        modifier = Modifier.fillMaxSize(),
+        state = state,
+        indicator = {
+            PullToRefreshDefaults.Indicator(
+                state = state,
+                isRefreshing = refreshing,
+                modifier = Modifier.align(Alignment.TopCenter).statusBarsPadding(),
+                containerColor = Color.White,
+                color = Color(0xFF2F80ED),
+            )
+        },
+    ) { WeatherList(data, city, live, theme, onSearchClick, onRefresh) }
+}
+
+@Composable
+private fun WeatherList(
     data: WeatherResponse, city: String, live: Boolean, theme: SkyTheme,
     onSearchClick: () -> Unit, onRefresh: () -> Unit,
 ) {
@@ -197,19 +229,16 @@ private fun WeatherContent(
     }
 }
 
-/** "Updated 3 min ago": age of the reading at the weather service plus the time since it was fetched. */
+/** "Checked 3 min ago": when this app last asked the weather service. Tap it, or pull down, to check again. */
 @Composable
 private fun UpdatedLabel(data: WeatherResponse, color: Color, onClick: () -> Unit) {
     val now by produceState(System.currentTimeMillis()) {
         while (true) { delay(30_000); value = System.currentTimeMillis() }
     }
-    val sourceAge = runCatching {
-        ChronoUnit.MINUTES.between(LocalDateTime.parse(data.updated), LocalDateTime.parse(data.current.time))
-    }.getOrDefault(0L).coerceAtLeast(0L)
-    val minutes = sourceAge + (now - data.fetchedAt) / 60_000L
-    val text = if (minutes < 1) "Updated just now" else "Updated $minutes min ago"
+    val minutes = ((now - data.fetchedAt) / 60_000L).coerceAtLeast(0L)
+    val text = if (minutes < 1) "Checked just now" else "Checked $minutes min ago"
     Text(
-        "$text · tap to refresh", color = color, fontSize = 12.sp,
+        "$text · pull down to refresh", color = color, fontSize = 12.sp,
         modifier = Modifier.clickable(onClick = onClick).padding(top = 6.dp),
     )
 }

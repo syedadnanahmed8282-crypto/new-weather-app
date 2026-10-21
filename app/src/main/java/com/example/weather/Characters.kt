@@ -67,6 +67,11 @@ private class Anim(
 
 private fun stroke(w: Float) = Stroke(w, cap = StrokeCap.Round, join = StrokeJoin.Round)
 
+/**
+ * A cute animated weather character. Everything moves on its own (bobbing, blinking, talking,
+ * spinning rays, falling drops, flickering lightning...). Tap it and it jumps and says "ooh".
+ * The drawing uses a 200 x 200 design grid that is scaled to [size].
+ */
 @Composable
 fun WeatherCharacter(sky: Sky, night: Boolean, size: Dp, modifier: Modifier = Modifier) {
     val kind = kindFor(sky, night)
@@ -129,14 +134,35 @@ fun WeatherCharacter(sky: Sky, night: Boolean, size: Dp, modifier: Modifier = Mo
     }
 }
 
+// ---------------------------------------------------------------- shared pieces
+
 private fun DrawScope.shadow(cx: Float, cy: Float, rx: Float) =
     drawOval(Color.Black.copy(alpha = 0.1f), Offset(cx - rx, cy - 6f), Size(rx * 2, 12f))
 
 private fun DrawScope.gloss(cx: Float, cy: Float, rx: Float, ry: Float, deg: Float, a: Float) =
     rotate(deg, Offset(cx, cy)) { drawOval(Color.White.copy(alpha = a), Offset(cx - rx, cy - ry), Size(rx * 2, ry * 2)) }
 
-private fun DrawScope.sphere(c: Offset, r: Float, light: Color, dark: Color) =
-    drawCircle(Brush.radialGradient(listOf(light, dark), Offset(c.x - r * 0.3f, c.y - r * 0.35f), r * 1.5f), r, c)
+// Gradients are built once and reused. Creating them on every frame was the main cost of the animation.
+private val sphereBrushes = HashMap<String, Brush>()
+private val cloudBrushes = HashMap<String, Brush>()
+private val RayBrush = Brush.verticalGradient(listOf(Color(0xFFFFE066), Color(0xFFFF9F1C)), 7f, 36f)
+private val BoltBrush = Brush.verticalGradient(listOf(Color(0xFFFFF27A), Color(0xFFFFAE00)), 140f, 200f)
+private val DropBrush = Brush.verticalGradient(listOf(Color(0xFFA9D9FF), Color(0xFF2F8CF0)), -9f, 8f)
+private val ScarfBrush = Brush.verticalGradient(listOf(Color(0xFF3FE0CF), Color(0xFF0F9F93)), 108f, 148f)
+private val ScarfTailBrush = Brush.verticalGradient(listOf(Color(0xFF3FE0CF), Color(0xFF0F9F93)), 108f, 148f)
+private val NoseBrush = Brush.horizontalGradient(listOf(Color(0xFFFFC15A), Color(0xFFFF7A00)), 100f, 128f)
+private val HatBrush = Brush.verticalGradient(listOf(Color(0xFFFF8FB7), Color(0xFFE03D7C)), 40f, 66f)
+private val CapBrush = Brush.verticalGradient(listOf(Color(0xFF8D7DFF), Color(0xFF4A3FD4)), 24f, 66f)
+
+private fun DrawScope.sphere(c: Offset, r: Float, light: Color, dark: Color) {
+    val brush = sphereBrushes.getOrPut("${c.x},${c.y},$r,${light.value},${dark.value}") {
+        Brush.radialGradient(listOf(light, dark), Offset(c.x - r * 0.3f, c.y - r * 0.35f), r * 1.5f)
+    }
+    drawCircle(brush, r, c)
+}
+
+private fun cloudBrush(i: Int, top: Color, bottom: Color): Brush =
+    cloudBrushes.getOrPut("$i,${top.value},${bottom.value}") { Brush.verticalGradient(listOf(top, bottom), 56f, 152f) }
 
 private fun DrawScope.line(ax: Float, ay: Float, bx: Float, by: Float, w: Float, c: Color = Ink) =
     drawLine(c, Offset(ax, ay), Offset(bx, by), w, StrokeCap.Round)
@@ -162,6 +188,8 @@ private fun DrawScope.zzz(x: Float, y: Float, t: Float) {
         zShape(x + ph * 14f, y - ph * 26f, 1f - i * 0.3f, sin(ph * 3.1416f))
     }
 }
+
+// ---------------------------------------------------------------- faces
 
 private fun DrawScope.eye(x: Float, y: Float, s: Float, blink: Float) {
     scale(1f, blink, Offset(x, y)) {
@@ -201,14 +229,14 @@ private fun DrawScope.face(kind: CharKind, cx: Float, y: Float, g: Float, a: Ani
             drawPath(m, MouthC); drawPath(m, Ink, style = stroke(3f))
             drawOval(Tongue, Offset(cx - 6.5f, y + 12f + h * 0.38f - 3.4f), Size(13f, 6.8f))
         }
-        CharKind.Cloud -> {
+        CharKind.Cloud -> {                       // yawning
             closedEyes(cx, y, g); blush(cx, y, g)
             val h = 17f * a.talk
             drawOval(MouthC, Offset(cx - 6.5f, y + 21f - h / 2), Size(13f, h))
             drawOval(Ink, Offset(cx - 6.5f, y + 21f - h / 2), Size(13f, h), style = stroke(3f))
             drawOval(Tongue, Offset(cx - 3.8f, y + 21f + h / 2 - 6f), Size(7.6f, 5f))
         }
-        CharKind.Rain -> {
+        CharKind.Rain -> {                        // sad, teary
             eye(cx - g, y, 1.1f, a.blink); eye(cx + g, y, 1.1f, a.blink)
             line(cx - g - 10f, y - 13f, cx - g + 3f, y - 19f, 3.5f); line(cx + g + 10f, y - 13f, cx + g - 3f, y - 19f, 3.5f)
             blush(cx, y, g, 0.9f, 0.5f)
@@ -220,7 +248,7 @@ private fun DrawScope.face(kind: CharKind, cx: Float, y: Float, g: Float, a: Ani
             }
             drawPath(tear, Color(0xFF8CCAFF)); drawPath(tear, Color(0xFF4AA3F0), style = Stroke(1.5f))
         }
-        CharKind.Storm -> {
+        CharKind.Storm -> {                       // angry, shouting
             eye(cx - g, y + 1f, 0.85f, a.blink); eye(cx + g, y + 1f, 0.85f, a.blink)
             line(cx - g - 10f, y - 14f, cx - g + 5f, y - 6f, 5f); line(cx + g + 10f, y - 14f, cx + g - 5f, y - 6f, 5f)
             blush(cx, y, g, 0.9f, 0.5f)
@@ -228,7 +256,7 @@ private fun DrawScope.face(kind: CharKind, cx: Float, y: Float, g: Float, a: Ani
             drawPath(m, MouthC); drawPath(m, Ink, style = stroke(3f))
             drawRoundRect(Color.White, Offset(cx - 9f, y + 15f), Size(18f, 5f), CornerRadius(1.5f))
         }
-        CharKind.Wind -> {
+        CharKind.Wind -> {                        // puffed cheeks, blowing
             val p = Path().apply {
                 moveTo(cx - g - 7f, y - 7f); lineTo(cx - g + 4f, y); lineTo(cx - g - 7f, y + 7f)
                 moveTo(cx + g + 7f, y - 7f); lineTo(cx + g - 4f, y); lineTo(cx + g + 7f, y + 7f)
@@ -239,7 +267,7 @@ private fun DrawScope.face(kind: CharKind, cx: Float, y: Float, g: Float, a: Ani
             drawCircle(Color(0xFFFF9FB4).copy(alpha = 0.75f), r, Offset(cx + g + 14f, y + 12f))
             drawCircle(MouthC, 5.5f, Offset(cx + 4f, y + 17f)); drawCircle(Ink, 5.5f, Offset(cx + 4f, y + 17f), style = stroke(3f))
         }
-        CharKind.Moon -> {
+        CharKind.Moon -> {                        // sleeping with a snore bubble
             closedEyes(cx, y, g); blush(cx, y, g)
             val sm = Path().apply { moveTo(cx - 5f, y + 15f); quadraticBezierTo(cx, y + 19f, cx + 5f, y + 15f) }
             drawPath(sm, Ink, style = stroke(4f))
@@ -250,15 +278,14 @@ private fun DrawScope.face(kind: CharKind, cx: Float, y: Float, g: Float, a: Ani
     }
 }
 
+// ---------------------------------------------------------------- characters
+
 private fun DrawScope.drawSun(a: Anim) {
     shadow(100f, 190f, 48f)
     val c = Offset(100f, 100f)
     rotate(a.spin, c) {
         for (i in 0 until 12) rotate(i * 30f, c) {
-            drawRoundRect(
-                Brush.verticalGradient(listOf(Color(0xFFFFE066), Color(0xFFFF9F1C)), 7f, 36f),
-                Offset(94f, 7f), Size(12f, 29f), CornerRadius(6f),
-            )
+            drawRoundRect(RayBrush, Offset(94f, 7f), Size(12f, 29f), CornerRadius(6f))
         }
     }
     scale(a.pulse, c) {
@@ -274,11 +301,10 @@ private fun DrawScope.drawSun(a: Anim) {
 
 private fun DrawScope.cloudBody(top: Color, bottom: Color, shade: Color) {
     shadow(103f, 180f, 46f)
-    val br = Brush.verticalGradient(listOf(top, bottom), 56f, 152f)
-    drawCircle(br, 32f, Offset(64f, 118f))
-    drawCircle(br, 42f, Offset(102f, 96f))
-    drawCircle(br, 28f, Offset(142f, 120f))
-    drawRoundRect(br, Offset(64f, 118f), Size(78f, 32f), CornerRadius(14f))
+    drawCircle(cloudBrush(0, top, bottom), 32f, Offset(64f, 118f))
+    drawCircle(cloudBrush(1, top, bottom), 42f, Offset(102f, 96f))
+    drawCircle(cloudBrush(2, top, bottom), 28f, Offset(142f, 120f))
+    drawRoundRect(cloudBrush(3, top, bottom), Offset(64f, 118f), Size(78f, 32f), CornerRadius(14f))
     drawRoundRect(shade.copy(alpha = 0.22f), Offset(64f, 136f), Size(78f, 14f), CornerRadius(7f))
     gloss(88f, 70f, 17f, 9f, -28f, 0.6f); gloss(46f, 106f, 8f, 4.5f, -30f, 0.5f); gloss(146f, 104f, 6f, 3.5f, -30f, 0.4f)
 }
@@ -294,7 +320,7 @@ private fun DrawScope.drop(x: Float, y: Float, alpha: Float) {
         val p = Path().apply {
             moveTo(0f, -9f); quadraticBezierTo(8f, 2f, 0f, 8f); quadraticBezierTo(-8f, 2f, 0f, -9f); close()
         }
-        drawPath(p, Brush.verticalGradient(listOf(Color(0xFFA9D9FF), Color(0xFF2F8CF0)), -9f, 8f), alpha = alpha)
+        drawPath(p, DropBrush, alpha = alpha)
         drawOval(Color.White.copy(alpha = 0.7f * alpha), Offset(-3.8f, -4f), Size(3.6f, 6f))
     }
 }
@@ -320,7 +346,7 @@ private fun DrawScope.drawStormy(a: Anim) {
         lineTo(128f, 160f); lineTo(111f, 160f); lineTo(122f, 140f); close()
     }
     val al = 0.55f + 0.45f * a.bolt
-    drawPath(bolt, Brush.verticalGradient(listOf(Color(0xFFFFF27A), Color(0xFFFFAE00)), 140f, 200f), alpha = al)
+    drawPath(bolt, BoltBrush, alpha = al)
     drawPath(bolt, Color(0xFFFF9800), alpha = al, style = stroke(3f))
     line(104f, 150f, 94f, 166f, 3f, Color.White.copy(alpha = 0.7f * al))
     sparkle(150f, 150f, 0.7f, Color(0xFFFFE680), a.bolt)
@@ -356,14 +382,13 @@ private fun DrawScope.drawSnowman(a: Anim) {
         drawCircle(Color(0xFF3A3358), 4f, Offset(100f, 146f)); drawCircle(Color(0xFF3A3358), 4f, Offset(100f, 162f))
         sphere(Offset(100f, 86f), 36f, Color.White, ice)
         gloss(84f, 68f, 11f, 6f, -30f, 0.7f)
-        val sc = Brush.verticalGradient(listOf(Color(0xFF3FE0CF), Color(0xFF0F9F93)), 108f, 148f)
-        drawRoundRect(sc, Offset(64f, 108f), Size(72f, 15f), CornerRadius(7.5f))
-        drawRoundRect(sc, Offset(112f, 116f), Size(15f, 32f), CornerRadius(7f))
+        drawRoundRect(ScarfBrush, Offset(64f, 108f), Size(72f, 15f), CornerRadius(7.5f))
+        drawRoundRect(ScarfTailBrush, Offset(112f, 116f), Size(15f, 32f), CornerRadius(7f))
         line(118f, 126f, 127f, 126f, 3f, Color.White.copy(alpha = 0.55f)); line(118f, 136f, 127f, 136f, 3f, Color.White.copy(alpha = 0.55f))
         val s = if (a.ooh) 1.2f else 0.9f
         eye(87f, 84f, s, a.blink); eye(113f, 84f, s, a.blink)
         val nose = Path().apply { moveTo(100f, 92f); lineTo(128f, 99f); lineTo(100f, 104f); close() }
-        drawPath(nose, Brush.horizontalGradient(listOf(Color(0xFFFFC15A), Color(0xFFFF7A00)), 100f, 128f))
+        drawPath(nose, NoseBrush)
         if (a.ooh) {
             drawOval(MouthC, Offset(95f, 105f), Size(10f, 12f))
         } else {
@@ -372,7 +397,7 @@ private fun DrawScope.drawSnowman(a: Anim) {
         }
         blush(100f, 86f, 13f, 0.8f, 0.75f)
         val hat = Path().apply { moveTo(66f, 66f); quadraticBezierTo(100f, 16f, 134f, 66f); close() }
-        drawPath(hat, Brush.verticalGradient(listOf(Color(0xFFFF8FB7), Color(0xFFE03D7C)), 40f, 66f))
+        drawPath(hat, HatBrush)
         drawRoundRect(Color.White, Offset(62f, 61f), Size(76f, 13f), CornerRadius(6.5f))
         drawCircle(Color.White, 9f, Offset(100f + a.sway, 36f + (a.talk - 1f) * 10f))
     }
@@ -393,7 +418,7 @@ private fun DrawScope.drawMoon(a: Anim) {
         moveTo(52f, 66f); quadraticBezierTo(64f, 18f, 116f, 24f); quadraticBezierTo(150f, 30f, 160f, 66f)
         quadraticBezierTo(112f, 44f, 52f, 66f); close()
     }
-    drawPath(cap, Brush.verticalGradient(listOf(Color(0xFF8D7DFF), Color(0xFF4A3FD4)), 24f, 66f))
+    drawPath(cap, CapBrush)
     rotate(-16f, Offset(82f, 66f)) { drawRoundRect(Color.White, Offset(46f, 60f), Size(72f, 12f), CornerRadius(6f)) }
     drawCircle(Color.White, 9f, Offset(160f + a.sway, 66f + a.sway.coerceAtLeast(0f)))
     zzz(156f, 100f, a.t3)

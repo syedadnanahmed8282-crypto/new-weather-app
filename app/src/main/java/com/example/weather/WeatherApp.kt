@@ -1,6 +1,7 @@
 package com.example.weather
 
 import android.os.Build
+import android.widget.Toast
 import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -13,6 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.BlurEffect
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.rememberGraphicsLayer
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
@@ -24,7 +26,7 @@ import kotlinx.coroutines.delay
 import java.time.LocalDateTime
 
 @Composable
-fun WeatherApp(vm: WeatherViewModel, onRequestLocation: () -> Unit) {
+fun WeatherApp(vm: WeatherViewModel, onRequestLocation: () -> Unit, onRefreshLocation: () -> Unit) {
     val ui by vm.ui.collectAsState()
     var tab by rememberSaveable { mutableIntStateOf(0) }
 
@@ -33,6 +35,15 @@ fun WeatherApp(vm: WeatherViewModel, onRequestLocation: () -> Unit) {
     LaunchedEffect(ui.selected.key) {
         if (ui.selected.key != lastKey) { lastKey = ui.selected.key; tab = 0 }
     }
+
+    // One-time messages (for example when a refresh fails) are shown once
+    val context = LocalContext.current
+    LaunchedEffect(ui.message) {
+        ui.message?.let { Toast.makeText(context, it, Toast.LENGTH_LONG).show(); vm.consumeMessage() }
+    }
+
+    // Saved cities' temperatures are fetched only when the Cities tab is opened (saves the daily call limit)
+    LaunchedEffect(tab) { if (tab == 1) vm.loadCityTempsIfStale() }
 
     // Auto refresh: while the app is on screen, check every minute and fetch again once the data is 10+ minutes old
     val owner = LocalLifecycleOwner.current
@@ -68,7 +79,13 @@ fun WeatherApp(vm: WeatherViewModel, onRequestLocation: () -> Unit) {
             SkyBackground(theme, sky, backdrop)
             Crossfade(tab, label = "screen") { t ->
                 when (t) {
-                    0 -> HomeScreen(ui, theme, onSearchClick = { tab = 1 }, onRetry = vm::refresh)
+                    0 -> HomeScreen(
+                        ui, theme,
+                        onSearchClick = { tab = 1 },
+                        onRetry = { vm.refresh() },
+                        // Pull down: update the position and the weather together
+                        onRefresh = { onRefreshLocation(); vm.refresh(manual = true) },
+                    )
                     1 -> CitiesScreen(
                         ui, theme,
                         onQuery = vm::search,
