@@ -13,7 +13,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
-import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -30,6 +29,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
@@ -87,7 +87,7 @@ private fun AnimatedTemp(value: Int, color: Color) {
     Text("${anim.value.roundToInt()}°", color = color, fontSize = 88.sp, fontWeight = FontWeight.Light)
 }
 
-/** Pull down from the top to refresh the weather and the location. */
+/** Pull down from the top to refresh the weather and the location. The page follows the finger, like a dial being wound. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun WeatherContent(
@@ -95,21 +95,27 @@ private fun WeatherContent(
     onSearchClick: () -> Unit, onRefresh: () -> Unit,
 ) {
     val state = rememberPullToRefreshState()
+    val sky = skyOf(data.current.code, data.current.wind)
+    // While updating, the page stays pushed down so the dial has room
+    val hold by animateFloatAsState(if (refreshing) 1f else 0f, tween(300), label = "hold")
     PullToRefreshBox(
         isRefreshing = refreshing,
         onRefresh = onRefresh,
         modifier = Modifier.fillMaxSize(),
         state = state,
         indicator = {
-            PullToRefreshDefaults.Indicator(
-                state = state,
-                isRefreshing = refreshing,
-                modifier = Modifier.align(Alignment.TopCenter).statusBarsPadding(),
-                containerColor = Color.White,
-                color = Color(0xFF2F80ED),
+            WeatherRefreshIndicator(
+                state, refreshing, sky, theme,
+                Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 4.dp),
             )
         },
-    ) { WeatherList(data, city, live, theme, onSearchClick, onRefresh) }
+    ) {
+        Box(
+            Modifier.fillMaxSize().graphicsLayer {
+                translationY = maxOf(state.distanceFraction.coerceIn(0f, 1.2f) * 112.dp.toPx(), hold * 112.dp.toPx())
+            }
+        ) { WeatherList(data, city, live, theme, onSearchClick, onRefresh) }
+    }
 }
 
 @Composable
@@ -138,9 +144,13 @@ private fun WeatherList(
         item {
             Appear(0) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Column {
-                        Text(if (live) "$greeting · live location" else greeting, color = muted, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                        Text(city, color = ink, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                    Column(Modifier.weight(1f).padding(end = 12.dp)) {
+                        Text(
+                            if (live) "$greeting · live location" else greeting,
+                            color = muted, fontSize = 13.sp, fontWeight = FontWeight.Medium,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(city, color = ink, fontSize = 24.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text(now.format(DateTimeFormatter.ofPattern("EEEE, d MMM · h:mm a")), color = muted, fontSize = 13.sp)
                     }
                     Box(

@@ -5,10 +5,12 @@ import android.content.Context
 import android.location.Address
 import android.location.Geocoder
 import android.location.Location
+import android.os.SystemClock
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -69,6 +71,7 @@ class WeatherViewModel(app: Application) : AndroidViewModel(app) {
     val ui: StateFlow<UiState> = _ui.asStateFlow()
     private var searchJob: Job? = null
     private var weatherJob: Job? = null
+    private var refreshStartedAt = 0L
     private val cityStamp = mutableMapOf<String, Long>()     // when each saved city's temperature was last fetched
 
     init {
@@ -84,7 +87,10 @@ class WeatherViewModel(app: Application) : AndroidViewModel(app) {
 
     /** [manual] = the person pulled down or tapped refresh, so a spinner and error messages are shown. */
     fun refresh(manual: Boolean = false) {
-        if (manual) _ui.update { it.copy(refreshing = true) }
+        if (manual) {
+            refreshStartedAt = SystemClock.elapsedRealtime()
+            _ui.update { it.copy(refreshing = true) }
+        }
         loadWeather(_ui.value.selected, manual)
         loadCityTemps(_ui.value.cities, force = false)
     }
@@ -156,10 +162,13 @@ class WeatherViewModel(app: Application) : AndroidViewModel(app) {
         }.getOrNull()
     }
 
+    // One short name: the area (like "Mirpur"), or the city if the map service has no area name
     private fun pickName(a: Address): String? {
-        val area = a.subLocality
-        val city = a.locality ?: a.subAdminArea ?: a.adminArea
-        return listOfNotNull(area, city).distinct().joinToString(", ").ifBlank { null }
+        val raw = a.subLocality ?: a.locality ?: a.subAdminArea ?: a.adminArea ?: return null
+        return raw
+            .replace(Regex("\\s+(Thana|Upazila|Upazilla|District|Division|City Corporation)$", RegexOption.IGNORE_CASE), "")
+            .trim()
+            .ifBlank { null }
     }
 
     // ---------------------------------------------------------------- places
@@ -226,24 +235,33 @@ class WeatherViewModel(app: Application) : AndroidViewModel(app) {
             // Ignore the answer if the person already picked another place
             if (_ui.value.selected.key != city.key) return@launch
             result.onSuccess { data ->
-                _ui.update { it.copy(weather = WeatherState.Success(data), refreshing = false) }
+                _ui.update { it.copy(weather = WeatherState.Success(data)) }
                 // Fallback name from the weather service, only if the map service has not named this place
                 val latest = _ui.value.selected
                 if (city.current && !latest.named && data.placeName.isNotBlank() && data.placeName != latest.name) {
                     renameCurrent(city.key, data.placeName, named = false)
                 }
+                finishRefreshing()
             }.onFailure { e ->
                 val text = e.message ?: "Something went wrong"
                 _ui.update { s ->
                     val keep = s.weather is WeatherState.Success      // keep showing the last good data
                     s.copy(
                         weather = if (keep) s.weather else WeatherState.Error(text),
-                        refreshing = false,
                         message = if (manual && keep) "Couldn't refresh: $text" else s.message,
                     )
                 }
+                finishRefreshing()
             }
         }
+    }
+
+    /** Keeps the refresh animation on screen for at least a second so it can be seen, then stops it. */
+    private suspend fun finishRefreshing() {
+        if (!_ui.value.refreshing) return
+        val left = 1000L - (SystemClock.elapsedRealtime() - refreshStartedAt)
+        if (left > 0) delay(left)
+        _ui.update { it.copy(refreshing = false) }
     }
 
     private fun renameCurrent(key: String, name: String, named: Boolean) {
